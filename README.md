@@ -10,7 +10,7 @@
   MemAgent: Reshaping Long-Context LLM with Multi-Conv RL based Memory Agent
 </h1>
 
-[![Paper](https://img.shields.io/badge/paper-5f16a8?style=for-the-badge&logo=arxiv&logoColor=white)](https://github.com/BytedTsinghua-SIA/MemAgent/blob/main/paper/paper.pdf)
+[![Paper](https://img.shields.io/badge/paper-5f16a8?style=for-the-badge&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2507.02259)
 [![Blog](https://img.shields.io/badge/Blog-3858bf?style=for-the-badge&logo=homepage&logoColor=white)](https://memagent-sialab.github.io/)
 [![Dataset](https://img.shields.io/badge/Datasets-4d8cd8?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/BytedTsinghua-SIA/hotpotqa)
 [![Weights](https://img.shields.io/badge/Model%20Weights-63cad3?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/BytedTsinghua-SIA/RL-MemoryAgent-14B)
@@ -207,3 +207,16 @@ See `verl/workers/reward_manager/thread.py` for more details.
 We thank [verl](https://github.com/volcengine/verl) team for providing a flexible and powerful infrastructure.
 
 We thank the authors of [the server mode generation](https://github.com/volcengine/verl/pull/1138) for their great work, which provides a solid foundation for our async agent framework.
+
+## Citation
+
+If you find this work useful, please consider citing our paper:
+
+```bibtex
+@article{yu2025memagent,
+  title={MemAgent: Reshaping Long-Context LLM with Multi-Conv RL-based Memory Agent},
+  author={Yu, Hongli and Chen, Tinghong and Feng, Jiangtao and Chen, Jiangjie and Dai, Weinan and Yu, Qiying and Zhang, Ya-Qin and Ma, Wei-Ying and Liu, Jingjing and Wang, Mingxuan and others},
+  journal={arXiv preprint arXiv:2507.02259},
+  year={2025}
+}
+```
