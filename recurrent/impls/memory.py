@@ -26,7 +26,6 @@ class MemoryConfig(RConfig):
     # max_input_length = max_prompt_length + chunk_size + max_memorization_length + template_length
     max_chunks: int  # max number of chunks to process
     max_final_response_length: int
-    style: str
     # max_output_length = max_final_response_length if final else max_memorization_length
 
     @property
