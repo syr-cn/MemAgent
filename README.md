@@ -20,6 +20,7 @@
 
 > [!IMPORTANT]
 > **🔥 News!!!**
+> - **[2025/07]** We provide a **quickstart** script that makes using **MemAgent** super easy, see the **Quickstart** section below.
 > - **[2025/06]** We release **RL-MemAgent-14B** and **RL-MemAgent-7B** models achieving nearly lossless performance on 3.5M token contexts task.
 
 ---
@@ -51,6 +52,41 @@ We use Reinforcement Learning from Verifiable Rewards (RLVR) to train MemAgent, 
 - **7B model:** Only 11% performance decline in longest contexts, significantly outperforming existing long-context models
 
 ![Performance Comparison](figs/main_result.png)
+
+## Quickstart
+
+`quickstart.py` offers a straightforward way to begin using MemAgent, supporting both local deployment and integration with online model services.
+
+
+### vLLM Local Deployment
+
+
+1.  **Start the `vllm` server:**
+
+    ```bash
+    vllm serve BytedTsinghua-SIA/RL-MemoryAgent-14B --tensor_parallel_size 2
+    ```
+
+2.  **Run `quickstart.py`:**
+
+    ```bash
+    python quickstart.py --model BytedTsinghua-SIA/RL-MemoryAgent-14B
+    ```
+
+### Online LLM Service
+
+For online LLM services, you'll need to configure your model endpoint and API key as environment variables.
+
+
+e.g.  `gpt-4o-2024-11-20`:
+- **Normal online services**: Simply use `https://{endpoint}`.
+- **Azure OpenAI**: Use the format `https://{endpoint}/openai/deployments/gpt-4o-2024-11-20`.
+
+```bash
+export URL=
+export API_KEY=
+python quickstart.py --model gpt-4o-2024-11-20
+```
 
 ## Reproducibility
 
