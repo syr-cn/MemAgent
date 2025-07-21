@@ -200,19 +200,21 @@ def pad_tensor_list_to_length(response: List[torch.LongTensor], pad_token_id, ma
     else:
         return padded_response
 
-def unpad(tokenizer, tensor: torch.Tensor, remove_eos: bool = False) -> List[torch.Tensor]:
+def unpad(tokenizer, tensor: torch.Tensor, remove_eos: bool = False) -> np.ndarray:
     """Unpad tensor. Remove eos if specified"""
     if len(tensor.shape) == 1:
         tensor = tensor.unsqueeze(0) 
     attention_mask = ~(tensor == tokenizer.pad_token_id)
     if remove_eos:
         attention_mask &= ~(tensor == tokenizer.eos_token_id)
-    if tensor.shape[0] == 1:
-        arr = np.empty(1, dtype=object)
-        arr[0] = tensor[0][attention_mask[0].bool()]
-        return arr
     
-    return np.array([tensor[i][attention_mask[i].bool()] for i in range(tensor.shape[0])], dtype=object)
+    # Force object array format to avoid numpy's automatic conversion
+    # when all tensors have the same length after unpadding
+    result = np.empty(tensor.shape[0], dtype=object)
+    for i in range(tensor.shape[0]):
+        result[i] = tensor[i][attention_mask[i]]
+    
+    return result
 
 def create_attention_mask(input_ids: torch.Tensor, pad_token_id) -> torch.Tensor:
     """Create attention mask from input ids."""
