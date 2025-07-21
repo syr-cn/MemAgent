@@ -129,9 +129,9 @@ The model used in tests will be downloaded from HuggingFace. However, Qwen2.5-In
 
 
 ```bash
-bash hfd.sh Qwen/Qwen2.5-7B-Instruct --model --tool aria2c -x 10
-bash hfd.sh Qwen/Qwen2.5-14B-Instruct --model --tool aria2c -x 10
-bash hfd.sh Qwen/Qwen2.5-32B-Instruct --model --tool aria2c -x 10
+bash hfd.sh Qwen/Qwen2.5-7B-Instruct --tool aria2c -x 10
+bash hfd.sh Qwen/Qwen2.5-14B-Instruct --tool aria2c -x 10
+bash hfd.sh Qwen/Qwen2.5-32B-Instruct --tool aria2c -x 10
 # then change the config.json manually
 ```
 
