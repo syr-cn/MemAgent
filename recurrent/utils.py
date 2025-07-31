@@ -145,13 +145,13 @@ def graceful_padding(bsz: int, group_nums: int) -> tuple[torch.Tensor, torch.Ten
         A tensor containing the index mapping with padding elements marked as -1
     """
     group_size = bsz // group_nums + 1
-    reminder = bsz % group_nums
-    if not reminder:
+    remainder = bsz % group_nums
+    if not remainder:
         return torch.arange(bsz), torch.ones(bsz, dtype=torch.bool)
     
     # Create mask where 1 = no padding, 0 = padding
     no_padding_mask = torch.tensor(
-        [1 if i // group_size < reminder or i % group_size else 0 
+        [1 if i // group_size < remainder or i % group_size else 0 
          for i in range(group_nums * group_size)],
         dtype=torch.int
     )
