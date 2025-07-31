@@ -87,8 +87,8 @@ class LLMGenerationManager:
         bsz = input_ids.shape[0]
 
         group_nums = self.world_size
-        reminder = bsz % group_nums
-        if reminder:
+        remainder = bsz % group_nums
+        if remainder:
             # Example pattern for bsz=7, group_nums=3:
             # no_padding_mask: [1, 1, 1, 0, 1, 1, 0, 1, 1]
             # padding_index:   [0, 1, 2, -1, 3, 4, -1, 5, 6]
@@ -112,7 +112,7 @@ class LLMGenerationManager:
             'attention_mask': attention_masks
         }, meta_info=meta_info)
         output_batch = self.actor_rollout_wg.generate_sequences(batch)
-        if reminder:
+        if remainder:
             # 4. remove padding
             output_batch = indexing_proto(output_batch, no_padding_mask)
         return output_batch
