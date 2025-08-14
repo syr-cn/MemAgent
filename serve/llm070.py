@@ -35,7 +35,6 @@ from vllm.executor.mp_distributed_executor import MultiprocessingDistributedExec
 from vllm.executor.ray_distributed_executor import RayDistributedExecutor
 from vllm.utils import FlexibleArgumentParser
 from vllm.entrypoints.logger import RequestLogger
-from recurrent.impls.memory import MemoryAgent
 
 logger = logging.getLogger("ray.serve")
 
@@ -87,6 +86,8 @@ class VLLMDeployment:
         engine_args.model = local_model_path
         engine_args.tokenizer = local_model_path
         engine_args.distributed_executor_backend = RayDistributedExecutor
+        import os
+        del os.environ['CUDA_VISIBLE_DEVICES']
         self.engine = AsyncLLMEngine.from_engine_args(engine_args)
 
     async def get_models(self):
