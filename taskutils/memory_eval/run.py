@@ -285,7 +285,7 @@ Qwen25_7B_5k_1k = Config(
 MemoryAgent_7B_5k_1k = Config(
     name="MemoryAgent-7B-5k-1k-infty",
     ckpt="BytedTsinghua-SIA/RL-MemoryAgent-7B",
-    tp=1,
+    tp=4,
     method="recurrent",
     concur=256,
     env=ENV(RECURRENT_MAX_CONTEXT_LEN=100000000000, RECURRENT_CHUNK_SIZE=5000, RECURRENT_MAX_NEW=1024),
@@ -304,21 +304,21 @@ MemoryAgent_14B_5k_1k = Config(
 CONFIGS = [
     # OURS
     MemoryAgent_7B_5k_1k,
-    MemoryAgent_14B_5k_1k,
-    # Main Result Baselines
-    L1,
-    Qwen25_14B_1M,
+    # MemoryAgent_14B_5k_1k,
+    # # Main Result Baselines
+    # L1,
+    # Qwen25_14B_1M,
     Qwen25_7B_1M,
-    R1_32B,
-    R1_14B,
+    # R1_32B,
+    # R1_14B,
     R1_7B,
-    # Ablation Baselines
-    Qwen25_32B_128k,
-    Qwen25_14B_128k,
-    Qwen25_7B_128k,
-    Qwen25_32B_5k_1k,
-    Qwen25_14B_5k_1k,
-    Qwen25_7B_5k_1k,
+    # # Ablation Baselines
+    # Qwen25_32B_128k,
+    # Qwen25_14B_128k,
+    # Qwen25_7B_128k,
+    # Qwen25_32B_5k_1k,
+    # Qwen25_14B_5k_1k,
+    # Qwen25_7B_5k_1k,
 ]
 
 def run_ruler_hqa():

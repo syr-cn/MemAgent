@@ -18,6 +18,7 @@ This trainer supports model-agonistic model initialization with huggingface
 
 import json
 import os
+import shutil
 import uuid
 from collections import defaultdict
 from contextlib import contextmanager
@@ -860,6 +861,29 @@ class RayPPOTrainer:
                     agent_cls=self.recurrent_register.agent_cls,
                 )
 
+    def _save_checkpoint_best_val(self):
+        # Remove old best models
+        local_dir = self.config.trainer.default_local_dir
+        best_val_dir_name = f'best_val_step_{self.global_steps}'
+        local_best_val_folder = os.path.join(local_dir, best_val_dir_name)
+        print(f"local_dir: {local_dir}")
+        if os.path.exists(local_dir):
+            for item in os.listdir(local_dir):
+                if item.startswith('best_val_step_'):
+                    item_path = os.path.join(local_dir, item)
+                    if os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+
+        # Save new best model
+        actor_local_path = os.path.join(local_best_val_folder, 'actor')
+        actor_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(self.config.trainer.default_hdfs_dir, best_val_dir_name, 'actor')
+        self.actor_rollout_wg.save_checkpoint(actor_local_path, actor_remote_path, self.global_steps, None)
+
+        if self.use_critic:
+            critic_local_path = os.path.join(local_best_val_folder, 'critic')
+            critic_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(self.config.trainer.default_hdfs_dir, best_val_dir_name, 'critic')
+            self.critic_wg.save_checkpoint(critic_local_path, critic_remote_path, self.global_steps, None)
+
     def _save_checkpoint(self):
         # path: given_path + `/global_step_{global_steps}` + `/actor`
         local_global_step_folder = os.path.join(self.config.trainer.default_local_dir, f"global_step_{self.global_steps}")
@@ -994,6 +1018,8 @@ class RayPPOTrainer:
         # we start from step 1
         self.global_steps += 1
         last_val_metrics = None
+
+        best_critic_score = -float('inf')
 
         for epoch in range(self.config.trainer.total_epochs):
             for batch_dict in self.train_dataloader:
@@ -1306,10 +1332,6 @@ class RayPPOTrainer:
                                 last_val_metrics = val_metrics
                         metrics.update(val_metrics)
 
-                    if self.config.trainer.save_freq > 0 and (is_last_step or self.global_steps % self.config.trainer.save_freq == 0):
-                        with _timer("save_checkpoint", timing_raw):
-                            self._save_checkpoint()
-
                 # training metrics
                 metrics.update(
                     {
@@ -1326,6 +1348,16 @@ class RayPPOTrainer:
                 # TODO: implement actual tflpo and theoretical tflpo
                 n_gpus = self.resource_pool_manager.get_n_gpus()
                 metrics.update(compute_throughout_metrics(batch=batch, timing_raw=timing_raw, n_gpus=n_gpus))
+
+                if self.config.trainer.save_freq > 0 and (is_last_step or self.global_steps % self.config.trainer.save_freq == 0):
+                    with _timer("save_checkpoint", timing_raw):
+                        self._save_checkpoint()
+                
+                save_score_key = 'critic/score/mean'
+                if metrics[save_score_key] > best_critic_score:
+                    logger.info(f"New best critic score: {metrics[save_score_key]} > {best_critic_score} (global_step: {self.global_steps})")
+                    best_critic_score = metrics[save_score_key]
+                    self._save_checkpoint_best_val()
 
                 # TODO: make a canonical logger that supports various backend
                 logger.log(data=metrics, step=self.global_steps)

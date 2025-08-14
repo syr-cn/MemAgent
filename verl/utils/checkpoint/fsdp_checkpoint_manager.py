@@ -161,4 +161,5 @@ class FSDPCheckpointManager(BaseCheckpointManager):
 
         torch.distributed.barrier()
 
-        self.previous_saved_paths.append(local_path)
+        if max_ckpt_to_keep is not None and max_ckpt_to_keep > 0:
+            self.previous_saved_paths.append(local_path)
