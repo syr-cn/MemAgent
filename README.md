@@ -90,6 +90,18 @@ python quickstart.py --model gpt-4o-2024-11-20
 
 ## Reproducibility
 
+### Performance
+
+In reproduction, you may find that the validation score during training is not equal to the final score (about 50% vs 80%). 
+This behavior is expected because during training we actually used a stricter version of the verifier to prevent reward hacking, while during testing we used a more lenient verifier. Specifically
+
+- In the [training verifier](https://github.com/BytedTsinghua-SIA/MemAgent/blob/main/verl/utils/reward_score/hotpotqa.py), the model’s answer must be placed inside `\boxed{}` with exact case matching and no additional characters.
+
+- In the [testing verifier](https://github.com/BytedTsinghua-SIA/MemAgent/blob/main/taskutils/memory_eval/utils/__init__.py), articles like “a/the” are ignored, as are case differences and punctuation.
+
+The stricter training verifier was inherited from earlier math-related RL work, whereas the more relaxed testing verifier aligns with practices in long-context projects such as Ruler and Qwen-Long.
+
+
 ### Testing Results
 
 ```bash
@@ -117,9 +129,9 @@ The model used in tests will be downloaded from HuggingFace. However, Qwen2.5-In
 
 
 ```bash
-bash hfd.sh Qwen/Qwen2.5-7B-Instruct --model --tool aria2c -x 10
-bash hfd.sh Qwen/Qwen2.5-14B-Instruct --model --tool aria2c -x 10
-bash hfd.sh Qwen/Qwen2.5-32B-Instruct --model --tool aria2c -x 10
+bash hfd.sh Qwen/Qwen2.5-7B-Instruct --tool aria2c -x 10
+bash hfd.sh Qwen/Qwen2.5-14B-Instruct --tool aria2c -x 10
+bash hfd.sh Qwen/Qwen2.5-32B-Instruct --tool aria2c -x 10
 # then change the config.json manually
 ```
 
