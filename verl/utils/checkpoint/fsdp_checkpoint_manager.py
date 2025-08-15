@@ -52,7 +52,7 @@ class FSDPCheckpointManager(BaseCheckpointManager):
         **kwargs,
     ):
         if checkpoint_contents is None:
-            checkpoint_contents = ["model", "optimizer", "extra"]
+            checkpoint_contents = ["model", "optimizer", "extra", 'hf_model']
         if processing_class is None:
             assert "tokenizer" in kwargs, "tokenizer or processor must be provided"
             warnings.warn("`tokenizer` is deprecated. use `processing_class` instead.", DeprecationWarning, stacklevel=2)

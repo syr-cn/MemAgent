@@ -1355,7 +1355,7 @@ class RayPPOTrainer:
                 
                 save_score_key = 'critic/score/mean'
                 if metrics[save_score_key] > best_critic_score:
-                    logger.info(f"New best critic score: {metrics[save_score_key]} > {best_critic_score} (global_step: {self.global_steps})")
+                    print(f"New best critic score: {metrics[save_score_key]} > {best_critic_score} (global_step: {self.global_steps})")
                     best_critic_score = metrics[save_score_key]
                     self._save_checkpoint_best_val()
 

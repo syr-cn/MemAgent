@@ -19,8 +19,8 @@ export HF_ENDPOINT="https://hf-mirror.com"
 MODEL_PATH="Qwen/Qwen2.5-1.5B-Instruct"
 VAL_PATH="${DATASET_ROOT}/hotpotqa/hotpotqa_dev.parquet"
 TRAIN_PATH="${DATASET_ROOT}/hotpotqa/hotpotqa_train_32k.parquet"
-EXP=memory_agent/1.5B
-EXP_LOG_NAME=memory_agent_1.5B
+EXP_LOG_NAME=memory_agent_1.5B_save_val
+EXP=memory_agent/$EXP_LOG_NAME
 PROJ_DIR=${PROJ_ROOT}/${EXP}
 export PYTHONPATH="/mnt/finder/shiyr/code/Mem/MemAgent:$PYTHONPATH"
 
