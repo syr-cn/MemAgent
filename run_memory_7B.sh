@@ -12,7 +12,7 @@ wandb_token="8c63841d0875e4fde65a42fb47b52e6a18b8a1ed"
 export WANDB_MODE="online"
 export WANDB_BASE_URL="https://api.wandb-cn.top"
 export WANDB_API_KEY=$wandb_token
-export WAND_PROJECT="memory-agent"
+export WANDB_PROJECT="memory-agent"
 
 # MODEL_PATH=Qwen/Qwen2.5-7B-Instruct
 export HF_ENDPOINT="https://hf-mirror.com"
@@ -61,7 +61,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384 \
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=32768 \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=32768 \
-    actor_rollout_ref.actor.ulysses_sequence_parallel_size=8 \
+    actor_rollout_ref.actor.ulysses_sequence_parallel_size=$NGPUS_PER_NODE \
     actor_rollout_ref.actor.use_kl_loss=True \
     actor_rollout_ref.actor.kl_loss_coef=0.001 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
@@ -74,7 +74,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.temperature=1 \
     actor_rollout_ref.rollout.top_p=0.999 \
-    actor_rollout_ref.rollout.tensor_model_parallel_size=8 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=$NGPUS_PER_NODE \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
     actor_rollout_ref.rollout.val_kwargs.temperature=1.0 \
@@ -83,7 +83,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=0 \
-    trainer.project_name=$WAND_PROJECT \
+    trainer.project_name=$WANDB_PROJECT \
     trainer.experiment_name=${EXP} \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=$NGPUS_PER_NODE \

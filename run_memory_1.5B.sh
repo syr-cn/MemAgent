@@ -12,7 +12,7 @@ wandb_token="8c63841d0875e4fde65a42fb47b52e6a18b8a1ed"
 export WANDB_MODE="online"
 export WANDB_BASE_URL="https://api.wandb-cn.top"
 export WANDB_API_KEY=$wandb_token
-export WAND_PROJECT="memory-agent"
+export WANDB_PROJECT="memory-agent"
 
 # MODEL_PATH=Qwen/Qwen2.5-7B-Instruct
 export HF_ENDPOINT="https://hf-mirror.com"
@@ -83,7 +83,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.dtype=bfloat16 \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=0 \
-    trainer.project_name=$WAND_PROJECT \
+    trainer.project_name=$WANDB_PROJECT \
     trainer.experiment_name=${EXP} \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=$NGPUS_PER_NODE \

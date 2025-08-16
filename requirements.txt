@@ -21,4 +21,4 @@ transformers
 wandb
 
 # pip install vllm==0.9  --index-url https://download.pytorch.org/whl/cu126
-# pip install hydra-core accelerate tensordict torchdata wandb "tensordict<=0.6.2"
+# pip install pandas hydra-core accelerate tensordict torchdata wandb "tensordict<=0.6.2"
