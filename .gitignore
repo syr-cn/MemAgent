@@ -4,6 +4,7 @@ results
 wandb
 *.json
 *.jsonl
+tmp*
 
 **/*.pt
 **/checkpoints
