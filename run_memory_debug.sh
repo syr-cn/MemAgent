@@ -9,21 +9,21 @@ DATASET_ROOT="/mnt/finder/shiyr/code/Mem/MemAgent/data"
 
 
 wandb_token="8c63841d0875e4fde65a42fb47b52e6a18b8a1ed"
-export WANDB_MODE="online"
+export WANDB_MODE="disabled"
+wandb offline
 export WANDB_BASE_URL="https://api.wandb-cn.top"
 export WANDB_API_KEY=$wandb_token
 export WANDB_PROJECT="memory-agent"
 
-# MODEL_PATH=Qwen/Qwen2.5-7B-Instruct
+# MODEL_PATH=Qwen/Qwen2.5-1.5B-Instruct
 export HF_ENDPOINT="https://hf-mirror.com"
-MODEL_PATH="Qwen/Qwen2.5-7B-Instruct"
+MODEL_PATH="Qwen/Qwen2.5-1.5B-Instruct"
 VAL_PATH="${DATASET_ROOT}/hotpotqa/hotpotqa_dev.parquet"
 TRAIN_PATH="${DATASET_ROOT}/hotpotqa/hotpotqa_train_32k.parquet"
-EXP_LOG_NAME=memory_agent_7B
+EXP_LOG_NAME=memory_agent_debug
 EXP=memory_agent/$EXP_LOG_NAME
 PROJ_DIR=${PROJ_ROOT}/${EXP}
 export PYTHONPATH="/mnt/finder/shiyr/code/Mem/MemAgent:$PYTHONPATH"
-PROJ_DIR=${PROJ_ROOT}/${EXP}
 
 # Please note that recurrent framewrok will use max_length defined in task config.
 # These two values are just for vLLM to decide max_model_length.
@@ -47,7 +47,7 @@ python3 -m verl.trainer.main_ppo \
     data.val_files=$VAL_PATH \
     data.shuffle=False \
     data.filter_overlong_prompts=True \
-    data.train_batch_size=32 \
+    data.train_batch_size=8 \
     data.truncation='center' \
     +data.context_key='context' \
     data.max_prompt_length=$MAXLEN \
@@ -91,7 +91,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=$NGPUS_PER_NODE \
     trainer.nnodes=$NNODES \
-    trainer.test_freq=10 \
+    trainer.test_freq=5 \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=$PROJ_DIR \
     trainer.total_epochs=30 \

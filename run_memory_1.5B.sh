@@ -81,6 +81,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.max_num_batched_tokens=16384\
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.rollout.dtype=bfloat16 \
+    +actor_rollout_ref.actor.fsdp_config.model_dtype="bf16" \
+    +actor_rollout_ref.ref.fsdp_config.model_dtype="bf16" \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=0 \
     trainer.project_name=$WANDB_PROJECT \

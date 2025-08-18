@@ -867,14 +867,16 @@ class RayPPOTrainer:
         best_val_dir_name = f'best_val_step_{self.global_steps}'
         local_best_val_folder = os.path.join(local_dir, best_val_dir_name)
         print(f"local_dir: {local_dir}")
+
+        old_model_list = []
         if os.path.exists(local_dir):
             for item in os.listdir(local_dir):
                 if item.startswith('best_val_step_'):
                     item_path = os.path.join(local_dir, item)
                     if os.path.isdir(item_path):
-                        shutil.rmtree(item_path)
+                        old_model_list.append(item_path)
 
-        # Save new best model
+        # Save new best model first
         actor_local_path = os.path.join(local_best_val_folder, 'actor')
         actor_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(self.config.trainer.default_hdfs_dir, best_val_dir_name, 'actor')
         self.actor_rollout_wg.save_checkpoint(actor_local_path, actor_remote_path, self.global_steps, None)
@@ -883,6 +885,10 @@ class RayPPOTrainer:
             critic_local_path = os.path.join(local_best_val_folder, 'critic')
             critic_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(self.config.trainer.default_hdfs_dir, best_val_dir_name, 'critic')
             self.critic_wg.save_checkpoint(critic_local_path, critic_remote_path, self.global_steps, None)
+
+        # Remove old best model afterwards
+        for old_model_path in old_model_list:
+            shutil.rmtree(old_model_path)
 
     def _save_checkpoint(self):
         # path: given_path + `/global_step_{global_steps}` + `/actor`
