@@ -226,7 +226,6 @@ class LLMGenerationManager:
                     for i, resp_text in enumerate(decoded_responses):
                         original_sample_idx = active_indices[i] # range: [0, bsz)
                         chunk_id = self.agent._parse_callback_id(resp_text)
-                        chunk_id = chunk_id + 2 # TODO: remove this debugging offset2
 
                         if chunk_id != -1:
                             recalled_chunk = self.agent.get_previous_chunk(original_sample_idx, chunk_id)

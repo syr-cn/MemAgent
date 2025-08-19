@@ -257,6 +257,8 @@ class MemoryAgent_Callback(RAgent):
         active_mask = self.active_mask
         gen_batch = self.gen_batch
         # if all context is used, and its not done, then it will be the final turn for this batch
+        if callback_inputs is None or callback_responses is None or callback_chunks is None:
+            self.is_final = True
         if self.is_final:
             self.messages = [
                 self.token_final_message_template.format(
@@ -324,8 +326,6 @@ class MemoryAgent_Callback(RAgent):
         except (ValueError, TypeError):
             pass # Fall through to return -1 if parsing fails
         
-        logger.warning(f"Could not parse a valid callback ID from response: '{text_response}'. Defaulting to -1.")
-        # TODO: remove redundant logging in production
         return -1
 
     @override
