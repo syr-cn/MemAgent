@@ -224,7 +224,7 @@ class MemoryAgent_Callback(RAgent):
         chunk_i = self.gen_batch.batch['context_ids'][active_mask, self.config.chunk_size * self.step: self.config.chunk_size * (self.step+1)]
         memory_i = self.memory[active_mask]
 
-        chunk_range_str = f"range: -1 or 1~{self.step}" if self.step > 1 else 'range: -1'
+        chunk_range_str = f"range: -1 or 1<=x<{self.step}" if self.step > 1 else 'range: -1'
         chunk_range = torch.tensor(self.tokenizer.encode(chunk_range_str, add_special_tokens=False), device=chunk_i.device, dtype=chunk_i.dtype)
         messages = [
             self.token_message_template_before_callback.format( # this function accept tokenized string

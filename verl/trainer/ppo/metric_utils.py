@@ -15,6 +15,7 @@
 Metrics related to the PPO trainer.
 """
 
+import re
 from collections import defaultdict
 from functools import partial
 from typing import Any, Callable, Dict, List
@@ -46,6 +47,62 @@ def _compute_response_info(batch: DataProto) -> Dict[str, Any]:
         response_length=response_length,
     )
 
+def calculate_callback_count(response: str):
+    x = re.findall(r'<callback>(\-?\d+)</callback>', response)
+    x = [int(i) for i in x if int(i) >= 1]
+    return len(x)
+
+def calculate_callback_distance(response: str):
+    x = re.findall(r'<callback>(\-?\d+)</callback>', response) # callback ID
+    x = [int(i) for i in x if int(i) >= 1]
+
+    y = re.findall(r'(range: -1 or 1<=x<(\d+))', response) # current chunk id
+    y = [int(i) for i in y if int(i) >= 1]
+
+    if len(x) == 0:
+        return 0
+    
+    if len(y) == 0:
+        print(f'WARNING: No chunk ID range found in response. Pass for this item.')
+        return 0
+
+    distance = abs(x[0] - y[0]) # We only consider the first callback ID and chunk ID for now
+    return distance
+
+def compute_action_metrics(batch: DataProto, tokenizer) -> Dict[str, Any]:
+    prompts = []
+    responses = []
+    for i in range(len(batch)):
+        data_item = batch[i]
+        prompt_ids = data_item.batch['prompts']
+
+        prompt_length = prompt_ids.shape[-1]
+        
+        valid_prompt_length = data_item.batch['attention_mask'][:prompt_length].sum()
+        # NOTE: we assume the prompt is not needed, please make sure that is true!
+        valid_prompt_ids = prompt_ids[-valid_prompt_length:]
+
+        response_ids = data_item.batch['responses'] 
+        valid_response_length = data_item.batch['attention_mask'][prompt_length:].sum()
+        valid_response_ids = response_ids[:valid_response_length]
+
+        # decode
+        prompt_str = tokenizer.decode(valid_prompt_ids, skip_special_tokens=True)
+        response_str = tokenizer.decode(valid_response_ids, skip_special_tokens=True)
+        prompts.append(prompt_str)
+        responses.append(response_str)
+    
+    metrics = {}
+    for metric_name, metric_fn in [
+        ('callback_count', calculate_callback_count),
+        ('callback_distance', calculate_callback_distance),
+    ]:
+        metric_results = [metric_fn(response) for response in responses]
+        metrics[metric_name + '/mean'] = np.mean(metric_results)
+        metrics[metric_name + '/max'] = np.max(metric_results)
+        metrics[metric_name + '/min'] = np.min(metric_results)
+
+    return metrics
 
 def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str, Any]:
     # TODO: add response length
