@@ -17,6 +17,7 @@ from typing import Dict, List, Tuple, Type
 
 import torch
 from codetiming import Timer
+import numpy as np
 
 from verl import DataProto
 
@@ -122,6 +123,18 @@ class LLMGenerationManager:
         genbatch: 'context_ids','context_length','prompt_ids'
         timing_raw: timing dict used in ray_trainer, note that we will accumulate the time cost in this loop, instead of override each time as in ray_trainer.
         see `_timer` implementation at the top of this file for more details.
+        
+        # This is a simplified diagram to show how sample_index works.
+        # DataProto and 2D tensors represented as a list of samples.
+
+        # ex. batch = [s1, s2, s3, s4]
+        #     gen_batch = [s1_turn1, s2_turn1, s3_turn1, s4_turn1, s1_turn2, s3_turn2, s3_turn3, s1_final, s2_final, s3_final, s4_final]
+        #     final_mask = [      F,        F,        F,        F,        F,        F,        F,        T,        T,        T,        T]
+        #     sample_index = [    0,        1,        2,        3,        0,        2,        2,        0,        1,        2,        3]
+        
+        # then, batch[sample_index] will be
+        #                 [      s1,       s2,       s3,       s4,       s1,       s3,       s3,       s1,       s2,       s3,       s4]
+        # We map info from original_sample to gen_batch_output now, e.x. in reward computation
         """
         active_num_list = [] # trace the active number of sample in each turn
         gen_output_list = [] # store I/O batch in each turn, used for policy optimization
@@ -157,3 +170,115 @@ class LLMGenerationManager:
         assert sum(final_mask) == len(gen_batch)
         logger.info(f"ACTIVE_TRAJ_NUM: {active_num_list}")
         return DataProto.concat(gen_output_list), final_mask, sample_index # pyright: ignore
+
+    
+    def run_llm_loop_callback(self, gen_batch, timing_raw) -> Tuple[DataProto, torch.BoolTensor, torch.LongTensor]:
+        active_num_list = []
+        gen_output_list = []
+        meta_info = gen_batch.meta_info
+        pad_token_id = self.tokenizer.pad_token_id
+        self.agent.start(gen_batch, timing_raw)
+
+        while not self.agent.done():
+            # -----------------------------------------------------------------
+            # STEP 1: Generate Callback Decision
+            # -----------------------------------------------------------------
+            with _timer('mt_prepare_callback', timing_raw):
+                messages_callback, meta_info_callback = self.agent.action_callback()
+
+                if self.agent.is_final:
+                    pass # No callback for final turn
+                else:
+                    if not messages_callback: # No active samples left
+                        logger.info("No active samples remaining, breaking loop.")
+                        break
+                    
+                    meta_info_callback.update(meta_info)
+                    input_ids_cb = pad_tensor_list_to_length(messages_callback, pad_token_id=pad_token_id, max_length=meta_info_callback['input_pad_to'], left_pad=True)
+                    attention_masks_cb = create_attention_mask(input_ids_cb, pad_token_id=pad_token_id)
+                    position_ids_cb = create_position_ids(attention_masks_cb)
+                    active_num_list.append(len(messages_callback))
+                    logger.info(f'Callback preparation done for step {self.agent.step}')
+
+            with _timer('mt_gen_callback', timing_raw):
+                if self.agent.is_final:
+                    pass # No callback for final turn
+                else:
+                    gen_output_callback = self.generate_with_graceful_padding(input_ids_cb, attention_masks_cb, position_ids_cb, meta_info_callback)
+                    logger.info('Callback generation done')
+
+            # -----------------------------------------------------------------
+            # STEP 2: Parse Callback, Retrieve Chunk, and Generate Memory
+            # -----------------------------------------------------------------
+            with _timer('mt_prepare_memory', timing_raw):
+                # Decode and parse callback IDs
+                if self.agent.is_final:
+                    messages_mem, meta_info_mem = self.agent.action()
+                else:
+                    decoded_responses = self.tokenizer.batch_decode(gen_output_callback.batch['responses'], skip_special_tokens=True)
+
+                    recalled_chunks = []
+                    active_indices = np.where(self.agent.active_mask)[0]
+
+                    for i, resp_text in enumerate(decoded_responses):
+                        original_sample_idx = active_indices[i] # range: [0, bsz)
+                        chunk_id = self.agent._parse_callback_id(resp_text)
+                        chunk_id = chunk_id + 2 # TODO: remove this debugging offset2
+
+                        if chunk_id != -1:
+                            recalled_chunk = self.agent.get_previous_chunk(original_sample_idx, chunk_id)
+                            recalled_chunks.append(recalled_chunk)
+                        else:
+                            recalled_chunks.append(None) # Sentinel for no callback
+
+                    assert len(recalled_chunks) == len(messages_callback), "Recalled chunks length mismatch with messages_callback length"
+
+                    # Prepare for the main memory generation
+                    messages_mem, meta_info_mem = self.agent.action(gen_output_callback.batch['responses'], recalled_chunks)
+                
+                meta_info_mem.update(meta_info)
+                input_ids_mem = pad_tensor_list_to_length(messages_mem, pad_token_id=pad_token_id, max_length=meta_info_mem['input_pad_to'], left_pad=True)
+
+                debug_input_string = self.tokenizer.batch_decode(input_ids_mem, skip_special_tokens=True)
+
+                attention_masks_mem = create_attention_mask(input_ids_mem, pad_token_id=pad_token_id)
+                position_ids_mem = create_position_ids(attention_masks_mem)
+                logger.info(f'Memory preparation done for step {self.agent.step}')
+
+            with _timer('mt_gen_memory', timing_raw):
+                gen_output_mem = self.generate_with_graceful_padding(input_ids_mem, attention_masks_mem, position_ids_mem, meta_info_mem)
+                logger.info('Memory generation done')
+
+            with _timer('mt_update', timing_raw):
+                # Update agent state (memory, step count) using the output from the memory generation
+                gen_output_final_for_turn = self.agent.update(gen_output_mem)
+                gen_output_list.append(gen_output_final_for_turn)
+                logger.info('Agent update done')
+
+        # This handles the final turn generation if all context was used up
+        if self.agent.active_mask.sum().item() == 0 and not self.agent.is_final:
+            logger.info("Entering final turn generation.")
+            messages_final, meta_info_final = self.agent.action() # No callback chunks for final action
+            meta_info_final.update(meta_info)
+            input_ids_final = pad_tensor_list_to_length(messages_final, pad_token_id=pad_token_id, max_length=meta_info_final['input_pad_to'], left_pad=True)
+            attention_masks_final = create_attention_mask(input_ids_final, pad_token_id=pad_token_id)
+            position_ids_final = create_position_ids(attention_masks_final)
+            
+            with _timer('mt_gen_final', timing_raw):
+                gen_output_final = self.generate_with_graceful_padding(input_ids_final, attention_masks_final, position_ids_final, meta_info_final)
+            
+            with _timer('mt_update_final', timing_raw):
+                 # We don't call update here as it increments step; just append the output
+                 gen_output_list.append(gen_output_final)
+
+
+        final_mask, sample_index = self.agent.end()
+
+        assert len(sample_index) == sum(active_num_list) + (self.agent.bsz if any(final_mask) else 0)
+        assert sum(final_mask) == len(gen_batch) if any(final_mask) else 0
+        logger.info(f"ACTIVE_TRAJ_NUM: {active_num_list}")
+        
+        if not gen_output_list:
+             return DataProto(), torch.empty(0, dtype=torch.bool), torch.empty(0, dtype=torch.long)
+
+        return DataProto.concat(gen_output_list), final_mask, sample_index

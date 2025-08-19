@@ -1,4 +1,5 @@
 import logging
+import re
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 from uuid import uuid4
@@ -111,6 +112,44 @@ class MemoryDataset(RDataset):
          # while prompt_ids will not be indexed, so keep it as list.
         return ["context_ids", "context_length"], ["prompt_ids"]
 
+
+TEMPLATE_CALLBACK = """You are an intelligent assistant. Your task is to process a document chunk by chunk to answer a question.
+You have access to your previous memory and the current chunk of the document.
+First, you must decide if you need to look back at a PREVIOUS chunk to better understand the current one.
+Your memory should contain a high-level outline of the information gathered so far to help you search.
+
+Based on the current memory and section, do you need to recall a previous chunk for more context?
+If YES, output the chunk ID in the format <callback>CALLBACK_CHUNK_ID</callback> where ID is the chunk number (e.g., <callback>0</callback>).
+If NO, output <callback>-1</callback>.
+
+<problem>
+{prompt}
+</problem>
+
+<memory>
+{memory}
+</memory>
+
+<section>
+{chunk}
+</section>
+
+Your decision ({chunk_range}):
+<callback>"""
+
+
+
+TEMPLATE_WITH_CALLBACK = TEMPLATE_CALLBACK + """
+{callback_response}
+
+<callbacked_section>
+{callback_chunk}
+</callbacked_section>
+
+Now, update the memory with the new information from the current section and the recalled chunk.
+Updated memory:
+"""
+
 TEMPLATE = """You are presented with a problem, a section of an article that may contain the answer to the problem, and a previous memory. Please read the provided section carefully and update the memory with the new information that helps to answer the problem. Be sure to retain all relevant details from the previous memory while adding any new, useful information.
 
 <problem> 
@@ -142,7 +181,7 @@ Your answer:
 """
 
 
-class MemoryAgent(RAgent):
+class MemoryAgent_Callback(RAgent):
     def __init__(self, tokenizer:PreTrainedTokenizer, config: MemoryConfig):
         self.config = config
         self.tokenizer = tokenizer
@@ -151,13 +190,15 @@ class MemoryAgent(RAgent):
         # '<|im_start|>system\nYou are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>\n<|im_start|>user\n{message}<|im_end|>\n<|im_start|>assistant\n'
         # This is a format string itself, '{message}' will be replaced by the actual message.
         self.chat_template = chat_template(tokenizer)
-        self.token_message_template = TokenTemplate(self.chat_template.format(message=TEMPLATE), tokenizer)
+        self.token_message_template_before_callback = TokenTemplate(self.chat_template.format(message=TEMPLATE_CALLBACK), tokenizer)
+        self.token_message_template_after_callback = TokenTemplate(self.chat_template.format(message=TEMPLATE_WITH_CALLBACK), tokenizer)
         self.token_final_message_template = TokenTemplate(self.chat_template.format(message=TEMPLATE_FINAL_BOXED), tokenizer)
         # we assume that final_message template is difinately shorter than message_template
-        self.max_input_length = self.config.max_raw_input_length + self.token_message_template.length 
+        self.max_input_length = self.config.max_raw_input_length + self.token_message_template_after_callback.length + self.config.chunk_size
         logger.info(f'\n[RECURRENT] max_input_length: {self.config.max_raw_input_length}(raw) '
-              f'+ {self.token_message_template.length}(message_template) = {self.max_input_length}\n')
+              f'+ {self.token_message_template_before_callback.length}(message_template) + {self.config.chunk_size}(chunk_size) = {self.max_input_length}\n')
         self.NO_MEMORY_TOKENS = tokenizer.encode("No previous memory", add_special_tokens=False)
+        self.NO_CHUNK_TOKENS = tokenizer.encode("No chunk was recalled.", add_special_tokens=False)
     
     @override
     def start(self, gen_batch: DataProto, timing_raw: dict):
@@ -171,25 +212,51 @@ class MemoryAgent(RAgent):
         self.memory = np.empty(self.bsz, dtype=object)
         self.is_final = False
     
-    @override
-    def action(self) -> Tuple[List[torch.Tensor], dict]:
-        # suppose 0 is pad_token_id
-        # max_chunks = 3, chunk_sieze = 2
-        # pi is token in prompt, ti is token in chat template, 
-        # [1,2] [3,4] [5,0] | p0 string
-        # [1,2] [3,0] [0,0] | p1,p1 string
-        # [1,0] [0,0] [0,0] | p2,p2,p2 string
-        # -------- round 1 ---------
-        # [1,2]            [t0,p0,t1, m,t2, 1, 2,t3]                           [ 0, 0, 0,t0,p0,t1, m,t2, 1, 2,t3]
-        # [1,2]  -format-> [t0,p1,p1,t1, m,t2, 1, 2,t3] -pad2Dlist2Tendors->   [ 0, 0,t0,p1,p1,t1, m,t2, 1, 2,t3]
-        # [1,0]            [t0,p2,p2,p3,t1, m,t2, 1,t3]                        [ 0, 0,t0,p2,p2,p3,t1, m,t2, 1,t3]
-        # get mask & positionids
+    def action_callback(self) -> Tuple[List[torch.Tensor], dict]:
+        """Prepares the inputs for the callback decision step."""
         active_mask = self.ctx_length > self.step * self.config.chunk_size
-        self.active_mask = active_mask
-        gen_batch = self.gen_batch
-        # if all context is used, and its not done, then it will be the final turn for this batch
         if active_mask.sum().item() == 0:
             self.is_final = True
+            return None, None
+        self.active_mask = active_mask # Store for use in the main action and update steps
+        
+        prompt_i = self.gen_batch.non_tensor_batch['prompt_ids'][active_mask]
+        chunk_i = self.gen_batch.batch['context_ids'][active_mask, self.config.chunk_size * self.step: self.config.chunk_size * (self.step+1)]
+        memory_i = self.memory[active_mask]
+
+        chunk_range_str = f"1~{self.step}" if self.step > 1 else '-1~0'
+        messages = [
+            self.token_message_template_before_callback.format( # this function accept tokenized string
+                prompt=prompt,
+                memory=memory if memory is not None else self.NO_MEMORY_TOKENS,
+                chunk=chunk[chunk != self.tokenizer.pad_token_id],
+                chunk_range=self.tokenizer.encode(chunk_range_str, add_special_tokens=False)
+            )
+            for prompt, memory, chunk in zip(prompt_i, memory_i, chunk_i)
+        ]
+
+        meta_info = {
+            'input_pad_to': self.max_input_length,
+            'pad_to': self.config.gen_pad_to,
+            'generation_kwargs': {
+                'max_tokens': 100,
+                'n': 1,
+                'eos_token_id': self.tokenizer.encode('>', add_special_tokens=False)[0],
+            }
+        }
+        logger.info(f'MemoryAgent.action_callback() done for step {self.step}')
+        return messages, meta_info
+
+    @override
+    def action(self, callback_responses: List[torch.Tensor] = None, callback_chunks: List[torch.Tensor] = None) -> Tuple[List[torch.Tensor], dict]:
+        """
+        Prepares the inputs for the memory generation step, now including the recalled chunk.
+        Params are set to None for final turn.
+        """
+        active_mask = self.active_mask
+        gen_batch = self.gen_batch
+        # if all context is used, and its not done, then it will be the final turn for this batch
+        if self.is_final:
             self.messages = [
                 self.token_final_message_template.format(
                     prompt=prompt,
@@ -215,13 +282,18 @@ class MemoryAgent(RAgent):
             memory_i = self.memory[active_mask]
             
             # format: we use our token_template to avoid decoding & formatting with str function & encoding back.
+
+            chunk_range_str = f"1~{self.step}" if self.step > 1 else '-1~0'
             self.messages = [
-                self.token_message_template.format(
+                self.token_message_template_after_callback.format(
                         prompt=prompt,
                         memory=memory if memory is not None else self.NO_MEMORY_TOKENS, # use pre-tokenized "No previous memory" for first round
                         chunk=chunk[chunk != self.tokenizer.pad_token_id], # unpadding needed here
+                        chunk_range=self.tokenizer.encode(chunk_range_str, add_special_tokens=False),
+                        callback_response=cb_response[cb_response != self.tokenizer.pad_token_id] if cb_response is not None else self.NO_CHUNK_TOKENS,
+                        callback_chunk=cb_chunk[cb_chunk != self.tokenizer.pad_token_id] if cb_chunk is not None else self.NO_CHUNK_TOKENS,                        
                 )
-                for prompt, memory, chunk in zip(prompt_i, memory_i, chunk_i)
+                for prompt, memory, chunk, cb_response, cb_chunk in zip(prompt_i, memory_i, chunk_i, callback_responses, callback_chunks)
             ]
             sample_index = torch.arange(self.bsz, dtype=torch.long)[active_mask] # map active sample to original batch
             final_mask = torch.full(sample_index.shape, False, dtype=torch.bool) # all False
@@ -231,7 +303,8 @@ class MemoryAgent(RAgent):
                           'max_tokens': self.config.gen_max_tokens_memorization,
                           'n': 1 # note that we have already repeat n times in ray_trainer
                         }}
-            logger.info(f'MemoryAgent.action() done')
+            logger.info(f'MemoryAgent.action() done for step {self.step}')
+
         self.final_mask_list.append(final_mask)
         self.sample_index_list.append(sample_index)
         return self.messages, self.meta_info
@@ -243,7 +316,30 @@ class MemoryAgent(RAgent):
         self.log_step(gen_output)
         self.step += 1
         return gen_output
-    
+
+    def get_previous_chunk(self, in_batch_id, step_id) -> str:
+        """Get the previous chunk from the processed chunks."""
+        previous_chunk = self.gen_batch.batch['context_ids'][in_batch_id, self.config.chunk_size * (step_id-1): self.config.chunk_size * step_id]
+        previous_chunk = previous_chunk[previous_chunk != self.tokenizer.pad_token_id]
+        return previous_chunk
+
+    ## MODIFIED: Helper function to parse the callback ID from the LLM's text output
+    def _parse_callback_id(self, text_response: str) -> int:
+        """Extracts the chunk ID from a string like '<callback>2</callback>'."""
+        try:
+            match = re.search(r'<callback>(\-?\d+)</callback>', text_response)
+            if match:
+                chunk_id = int(match.group(1))
+                # Ensure the requested ID is valid and not out of bounds
+                if -1 <= chunk_id <= self.step:
+                    return chunk_id
+        except (ValueError, TypeError):
+            pass # Fall through to return -1 if parsing fails
+        
+        logger.warning(f"Could not parse a valid callback ID from response: '{text_response}'. Defaulting to -1.")
+        # TODO: remove redundant logging in production
+        return -1
+
     @override
     def done(self):
         return self.is_final
@@ -290,4 +386,4 @@ class MemoryAgent(RAgent):
 
 # Important, we will import `REGISTER` from this file to get all registered classes.
 # specified by recurrent.path / recurrent.name(defaults to REGISTER)
-REGISTER = RRegister(config_cls=MemoryConfig, dataset_cls=MemoryDataset, agent_cls=MemoryAgent)
+REGISTER = RRegister(config_cls=MemoryConfig, dataset_cls=MemoryDataset, agent_cls=MemoryAgent_Callback)

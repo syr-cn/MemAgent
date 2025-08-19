@@ -21,7 +21,7 @@ logger.setLevel('INFO')
 class MemoryConfig(RConfig):
     context_key: str
     max_prompt_length: int  #
-    chunk_size: int  # size of each context chunk in number of tokens3
+    chunk_size: int  # size of each context chunk in number of tokens
     max_memorization_length: int  # max number of tokens to memorize
     # max_input_length = max_prompt_length + chunk_size + max_memorization_length + template_length
     max_chunks: int  # max number of chunks to process
@@ -174,7 +174,7 @@ class MemoryAgent(RAgent):
     @override
     def action(self) -> Tuple[List[torch.Tensor], dict]:
         # suppose 0 is pad_token_id
-        # max_chunks = 3, chunk_sieze = 2
+        # max_chunks = 3, chunk_size = 2
         # pi is token in prompt, ti is token in chat template, 
         # [1,2] [3,4] [5,0] | p0 string
         # [1,2] [3,0] [0,0] | p1,p1 string

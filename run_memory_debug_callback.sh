@@ -17,10 +17,10 @@ export WANDB_PROJECT="memory-agent"
 
 # MODEL_PATH=Qwen/Qwen2.5-1.5B-Instruct
 export HF_ENDPOINT="https://hf-mirror.com"
-MODEL_PATH="Qwen/Qwen2.5-1.5B-Instruct"
+MODEL_PATH="Qwen/Qwen2.5-0.5B-Instruct"
 VAL_PATH="${DATASET_ROOT}/hotpotqa/hotpotqa_dev.parquet"
 TRAIN_PATH="${DATASET_ROOT}/hotpotqa/hotpotqa_train_32k.parquet"
-EXP_LOG_NAME=memory_agent_debug
+EXP_LOG_NAME=memory_agent_debug_callback
 EXP=memory_agent/$EXP_LOG_NAME
 PROJ_DIR=${PROJ_ROOT}/${EXP}
 export PYTHONPATH="/mnt/finder/shiyr/code/Mem/MemAgent:$PYTHONPATH"
@@ -34,6 +34,7 @@ LOG_PATH="/mnt/finder/shiyr/code/Mem/MemAgent/log/$EXP_LOG_NAME.log"
 python3 -m verl.trainer.main_ppo \
     recurrent.enable=memory \
     recurrent.memory.config.chunk_size=5000 \
+    recurrent.memory.path="recurrent/impls/memory_callback.py" \
     algorithm.adv_estimator=grpo \
     algorithm.grpo_use_adv=False \
     trainer.save_freq=50 \
@@ -61,7 +62,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384 \
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=32768 \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=32768 \
-    actor_rollout_ref.actor.ulysses_sequence_parallel_size=4 \
+    actor_rollout_ref.actor.ulysses_sequence_parallel_size=2 \
     actor_rollout_ref.actor.use_kl_loss=True \
     actor_rollout_ref.actor.kl_loss_coef=0.001 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
@@ -74,7 +75,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.temperature=1 \
     actor_rollout_ref.rollout.top_p=0.999 \
-    actor_rollout_ref.rollout.tensor_model_parallel_size=4 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
     actor_rollout_ref.rollout.val_kwargs.temperature=1.0 \

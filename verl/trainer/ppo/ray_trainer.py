@@ -1101,7 +1101,11 @@ class RayPPOTrainer:
                             # Also, just as what happened in validate, we will always set n=1 in generation_kwargs.
                             batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                             gen_batch = gen_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
-                            gen_batch_output, final_mask, sample_index = self.generation_manager.run_llm_loop(gen_batch, timing_raw)
+
+                            if 'callback' in self.config.recurrent.memory.path:
+                                gen_batch_output, final_mask, sample_index = self.generation_manager.run_llm_loop_callback(gen_batch, timing_raw)
+                            else:
+                                gen_batch_output, final_mask, sample_index = self.generation_manager.run_llm_loop(gen_batch, timing_raw)
 
                             assert final_mask.sum().item() == len(batch.batch), \
                                 "The number of final responses should be equal to the number of prompts." \
@@ -1363,7 +1367,8 @@ class RayPPOTrainer:
                 if metrics[save_score_key] > best_critic_score:
                     print(f"New best critic score: {metrics[save_score_key]} > {best_critic_score} (global_step: {self.global_steps})")
                     best_critic_score = metrics[save_score_key]
-                    self._save_checkpoint_best_val()
+                    if getattr(self.config.trainer, 'save_best_val', False):
+                        self._save_checkpoint_best_val()
 
                 # TODO: make a canonical logger that supports various backend
                 logger.log(data=metrics, step=self.global_steps)
