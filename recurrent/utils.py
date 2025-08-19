@@ -62,7 +62,7 @@ class TokenTemplate:
         self.last_section: torch.LongTensor = None  # Last section as LongTensor
         
         # Match all {keywords}
-        pattern = r'\{([a-zA-Z]+)\}'        
+        pattern = r'\{([a-zA-Z_]+)\}'
         parts = re.split(pattern, self.template)
         
         # Split text: even indices are non-{} parts, odd indices are {} keywords

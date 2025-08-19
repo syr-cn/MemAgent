@@ -27,13 +27,17 @@ export PYTHONPATH="/mnt/finder/shiyr/code/Mem/MemAgent:$PYTHONPATH"
 
 # Please note that recurrent framewrok will use max_length defined in task config.
 # These two values are just for vLLM to decide max_model_length.
-MAXLEN=8192 
+MAXLEN=8192
 MAX_NEW_TOKEN=1024
+RECURRENT_MAXLEN=1024
 
 LOG_PATH="/mnt/finder/shiyr/code/Mem/MemAgent/log/$EXP_LOG_NAME.log"
 python3 -m verl.trainer.main_ppo \
     recurrent.enable=memory \
-    recurrent.memory.config.chunk_size=5000 \
+    recurrent.memory.config.chunk_size=4000 \
+    recurrent.memory.config.max_final_response_length=$RECURRENT_MAXLEN \
+    recurrent.memory.config.max_memorization_length=$RECURRENT_MAXLEN \
+    recurrent.memory.config.max_prompt_length=$RECURRENT_MAXLEN \
     recurrent.memory.path="recurrent/impls/memory_callback.py" \
     algorithm.adv_estimator=grpo \
     algorithm.grpo_use_adv=False \
@@ -57,9 +61,9 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.path=$MODEL_PATH  \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
-    actor_rollout_ref.actor.ppo_mini_batch_size=2 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=1 \
     actor_rollout_ref.actor.use_dynamic_bsz=True \
-    actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384 \
+    actor_rollout_ref.actor.ppo_max_token_len_per_gpu=$((MAXLEN + 8192)) \
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=32768 \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=32768 \
     actor_rollout_ref.actor.ulysses_sequence_parallel_size=2 \
@@ -80,7 +84,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
     actor_rollout_ref.rollout.val_kwargs.temperature=1.0 \
     actor_rollout_ref.rollout.val_kwargs.top_p=0.7 \
-    actor_rollout_ref.rollout.max_num_batched_tokens=16384\
+    actor_rollout_ref.rollout.max_num_batched_tokens=$((MAXLEN + 8192)) \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.rollout.dtype=bfloat16 \
     +actor_rollout_ref.actor.fsdp_config.model_dtype="bf16" \
@@ -92,7 +96,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=$NGPUS_PER_NODE \
     trainer.nnodes=$NNODES \
-    trainer.test_freq=5 \
+    trainer.test_freq=1 \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=$PROJ_DIR \
     trainer.total_epochs=30 \

@@ -195,6 +195,9 @@ class LLMGenerationManager:
                     
                     meta_info_callback.update(meta_info)
                     input_ids_cb = pad_tensor_list_to_length(messages_callback, pad_token_id=pad_token_id, max_length=meta_info_callback['input_pad_to'], left_pad=True)
+
+                    debug_input_string = self.tokenizer.batch_decode(input_ids_cb, skip_special_tokens=True)
+                    
                     attention_masks_cb = create_attention_mask(input_ids_cb, pad_token_id=pad_token_id)
                     position_ids_cb = create_position_ids(attention_masks_cb)
                     active_num_list.append(len(messages_callback))
@@ -234,13 +237,10 @@ class LLMGenerationManager:
                     assert len(recalled_chunks) == len(messages_callback), "Recalled chunks length mismatch with messages_callback length"
 
                     # Prepare for the main memory generation
-                    messages_mem, meta_info_mem = self.agent.action(gen_output_callback.batch['responses'], recalled_chunks)
+                    messages_mem, meta_info_mem = self.agent.action(input_ids_cb, gen_output_callback.batch['responses'], recalled_chunks)
                 
                 meta_info_mem.update(meta_info)
                 input_ids_mem = pad_tensor_list_to_length(messages_mem, pad_token_id=pad_token_id, max_length=meta_info_mem['input_pad_to'], left_pad=True)
-
-                debug_input_string = self.tokenizer.batch_decode(input_ids_mem, skip_special_tokens=True)
-
                 attention_masks_mem = create_attention_mask(input_ids_mem, pad_token_id=pad_token_id)
                 position_ids_mem = create_position_ids(attention_masks_mem)
                 logger.info(f'Memory preparation done for step {self.agent.step}')
