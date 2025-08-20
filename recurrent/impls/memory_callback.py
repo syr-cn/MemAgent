@@ -235,6 +235,8 @@ class MemoryAgent_Callback(RAgent):
             )
             for prompt, memory, chunk in zip(prompt_i, memory_i, chunk_i)
         ]
+        sample_index = torch.arange(self.bsz, dtype=torch.long)[active_mask] # map active sample to original batch
+        final_mask = torch.full(sample_index.shape, False, dtype=torch.bool) # all False
 
         meta_info = {
             'input_pad_to': self.max_input_length,
@@ -246,6 +248,9 @@ class MemoryAgent_Callback(RAgent):
             }
         }
         logger.info(f'MemoryAgent.action_callback() done for step {self.step}')
+        
+        self.final_mask_list.append(final_mask)
+        self.sample_index_list.append(sample_index)
         return messages, meta_info
 
     @override
@@ -268,7 +273,7 @@ class MemoryAgent_Callback(RAgent):
                 for prompt, memory in zip(gen_batch.non_tensor_batch['prompt_ids'], self.memory)
             ]
             sample_index = torch.arange(self.bsz, dtype=torch.int)
-            final_mask = torch.full(sample_index.shape, True, dtype=torch.bool) # all False
+            final_mask = torch.full(sample_index.shape, True, dtype=torch.bool) # all True
             self.meta_info = {'input_pad_to': self.max_input_length,
                          'pad_to': self.config.gen_pad_to,
                          'generation_kwargs': {

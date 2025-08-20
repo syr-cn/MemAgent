@@ -47,12 +47,16 @@ def _compute_response_info(batch: DataProto) -> Dict[str, Any]:
         response_length=response_length,
     )
 
-def calculate_callback_count(response: str):
+def calculate_callback_count(prompt: str, response: str):
     x = re.findall(r'<callback>(\-?\d+)</callback>', response)
     x = [int(i) for i in x if int(i) >= 1]
-    return len(x)
+    if '<callback>' in prompt and '<callbacked_section>' not in response:
+        # Only keep the callback count for the callback decision turns
+        return len(x)
+    else:
+        return None
 
-def calculate_callback_distance(response: str):
+def calculate_callback_distance(prompt: str, response: str):
     x = re.findall(r'<callback>(\-?\d+)</callback>', response) # callback ID
     x = [int(i) for i in x if int(i) >= 1]
 
@@ -97,7 +101,8 @@ def compute_action_metrics(batch: DataProto, tokenizer) -> Dict[str, Any]:
         ('callback_count', calculate_callback_count),
         ('callback_distance', calculate_callback_distance),
     ]:
-        metric_results = [metric_fn(response) for response in responses]
+        metric_results = [metric_fn(prompt, response) for prompt, response in zip(prompts, responses)]
+        metric_results = [metric_result for metric_result in metric_results if metric_result is not None]
         metrics[metric_name + '/mean'] = np.mean(metric_results)
         metrics[metric_name + '/max'] = np.max(metric_results)
         metrics[metric_name + '/min'] = np.min(metric_results)

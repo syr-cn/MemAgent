@@ -208,6 +208,7 @@ class LLMGenerationManager:
                     pass # No callback for final turn
                 else:
                     gen_output_callback = self.generate_with_graceful_padding(input_ids_cb, attention_masks_cb, position_ids_cb, meta_info_callback)
+                    gen_output_list.append(gen_output_callback)
                     logger.info('Callback generation done')
 
             # -----------------------------------------------------------------
@@ -242,6 +243,7 @@ class LLMGenerationManager:
                 input_ids_mem = pad_tensor_list_to_length(messages_mem, pad_token_id=pad_token_id, max_length=meta_info_mem['input_pad_to'], left_pad=True)
                 attention_masks_mem = create_attention_mask(input_ids_mem, pad_token_id=pad_token_id)
                 position_ids_mem = create_position_ids(attention_masks_mem)
+                active_num_list.append(len(messages_mem))
                 logger.info(f'Memory preparation done for step {self.agent.step}')
 
             with _timer('mt_gen_memory', timing_raw):
@@ -273,7 +275,7 @@ class LLMGenerationManager:
 
         final_mask, sample_index = self.agent.end()
 
-        assert len(sample_index) == sum(active_num_list) + (self.agent.bsz if any(final_mask) else 0)
+        assert len(sample_index) == sum(active_num_list)
         assert sum(final_mask) == len(gen_batch) if any(final_mask) else 0
         logger.info(f"ACTIVE_TRAJ_NUM: {active_num_list}")
         
