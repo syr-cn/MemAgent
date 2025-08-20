@@ -52,7 +52,7 @@ python3 -m verl.trainer.main_ppo \
     data.val_files=$VAL_PATH \
     data.shuffle=False \
     data.filter_overlong_prompts=True \
-    data.train_batch_size=8 \
+    data.train_batch_size=2 \
     data.truncation='center' \
     +data.context_key='context' \
     data.max_prompt_length=$MAXLEN \
@@ -83,7 +83,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
     actor_rollout_ref.rollout.val_kwargs.temperature=1.0 \
-    actor_rollout_ref.rollout.val_kwargs.top_p=0.6 \
+    actor_rollout_ref.rollout.val_kwargs.top_p=0.7 \
     actor_rollout_ref.rollout.max_num_batched_tokens=$((MAXLEN + 8192)) \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.rollout.dtype=bfloat16 \
@@ -92,11 +92,11 @@ python3 -m verl.trainer.main_ppo \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=0 \
     trainer.project_name=$WANDB_PROJECT \
-    trainer.experiment_name=${EXP} \
+    trainer.experiment_name=$EXP_LOG_NAME \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=$NGPUS_PER_NODE \
     trainer.nnodes=$NNODES \
-    trainer.test_freq=1 \
+    trainer.test_freq=10 \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=$PROJ_DIR \
     trainer.total_epochs=30 \

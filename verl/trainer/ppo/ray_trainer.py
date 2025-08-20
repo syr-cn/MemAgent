@@ -36,6 +36,7 @@ from omegaconf import OmegaConf, open_dict
 from torch.utils.data import Dataset, RandomSampler, SequentialSampler
 from torchdata.stateful_dataloader import StatefulDataLoader
 from tqdm import tqdm
+from pprint import pprint
 
 from verl import DataProto
 from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
@@ -51,6 +52,7 @@ from verl.trainer.ppo.metric_utils import (
     compute_timing_metrics,
     process_validation_metrics,
     reduce_metrics,
+    update_validate_metrics,
 )
 from verl.trainer.ppo.reward import compute_reward, compute_reward_async
 from verl.utils.checkpoint.checkpoint_manager import find_latest_ckpt_path
@@ -704,7 +706,10 @@ class RayPPOTrainer:
                 test_output_gen_batch = unpad_dataproto(test_output_gen_batch_padded, pad_size=pad_size)
             else:
                 from recurrent.utils import final_batch
-                output_gen_batch, final_mask, sample_index = self.generation_manager.run_llm_loop(test_gen_batch, {})
+                if 'callback' in self.config.recurrent.memory.path:
+                    output_gen_batch, final_mask, sample_index = self.generation_manager.run_llm_loop_callback(test_gen_batch, {})
+                else:
+                    output_gen_batch, final_mask, sample_index = self.generation_manager.run_llm_loop(test_gen_batch, {})
                 test_output_gen_batch = final_batch(output_gen_batch, final_mask, sample_index)
 
             print('validation generation end')
@@ -723,9 +728,12 @@ class RayPPOTrainer:
             sample_scores.extend(scores)
 
             reward_extra_infos_dict["reward"].extend(scores)
-            if "reward_extra_info" in result:
-                for key, lst in result["reward_extra_info"].items():
-                    reward_extra_infos_dict[key].extend(lst)
+            if "reward_extra_info" not in result:
+                result["reward_extra_info"] = {}
+            result["reward_extra_info"].update(update_validate_metrics(test_batch, output_texts))
+
+            for key, lst in result["reward_extra_info"].items():
+                reward_extra_infos_dict[key].extend(lst)
 
             data_source_lst.append(test_batch.non_tensor_batch.get("data_source", ["unknown"] * reward_tensor.shape[0]))
 
@@ -755,10 +763,15 @@ class RayPPOTrainer:
                 for metric_name, metric_val in metric2val.items():
                     if (var_name == core_var) and any(metric_name.startswith(pfx) for pfx in ["mean", "maj", "best"]) and (f"@{n_max}" in metric_name):
                         metric_sec = "val-core"
+                    elif 'test' in var_name:
+                        metric_sec = "val-test"
                     else:
                         metric_sec = "val-aux"
                     pfx = f"{metric_sec}/{data_source}/{var_name}/{metric_name}"
                     metric_dict[pfx] = metric_val
+        
+        print("="*40 + "Validation Metric Dict" + "="*40)
+        pprint(metric_dict)
 
         return metric_dict
 
@@ -1355,7 +1368,7 @@ class RayPPOTrainer:
                     from recurrent.utils import indexing_proto
                     batch = indexing_proto(batch, batch.batch['no_padding_mask'])
                 metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic))
-                metrics.update(compute_action_metrics(batch=batch))
+                metrics.update(compute_action_metrics(batch=batch, tokenizer=self.tokenizer))
                 metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
                 # TODO: implement actual tflpo and theoretical tflpo
                 n_gpus = self.resource_pool_manager.get_n_gpus()

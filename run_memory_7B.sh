@@ -1,36 +1,38 @@
 #!/bin/bash
 set -x
 
-# at least 1 nodes, 4nodes=3~4days to converge
-NNODES=1
-NGPUS_PER_NODE=8
-PROJ_ROOT="/mnt/finder/shiyr/code/Mem/MemAgent/results"
-DATASET_ROOT="/mnt/finder/shiyr/code/Mem/MemAgent/data"
+# Model and Project
+PROJ_ROOT="/mnt/finder/shiyr/code/Mem/MemAgent"
+MODEL_PATH="models/Qwen2.5-7B-Instruct"
+EXP_LOG_NAME=memory_agent_7B
 
-
+# Wandb
 wandb_token="8c63841d0875e4fde65a42fb47b52e6a18b8a1ed"
-export WANDB_MODE="online"
+export WANDB_MODE="offline"
+wandb offline
 export WANDB_BASE_URL="https://api.wandb-cn.top"
 export WANDB_API_KEY=$wandb_token
 export WANDB_PROJECT="memory-agent"
 
-# MODEL_PATH=Qwen/Qwen2.5-7B-Instruct
+# Cluster
+# at least 1 nodes, 4nodes=3~4days to converge
+NNODES=1
+NGPUS_PER_NODE=8
+DATASET_ROOT="$PROJ_ROOT/data"
+
+# Dataset
 export HF_ENDPOINT="https://hf-mirror.com"
-MODEL_PATH="Qwen/Qwen2.5-7B-Instruct"
 VAL_PATH="${DATASET_ROOT}/hotpotqa/hotpotqa_dev.parquet"
 TRAIN_PATH="${DATASET_ROOT}/hotpotqa/hotpotqa_train_32k.parquet"
-EXP_LOG_NAME=memory_agent_7B
 EXP=memory_agent/$EXP_LOG_NAME
-PROJ_DIR=${PROJ_ROOT}/${EXP}
-export PYTHONPATH="/mnt/finder/shiyr/code/Mem/MemAgent:$PYTHONPATH"
-PROJ_DIR=${PROJ_ROOT}/${EXP}
+PROJ_DIR=${PROJ_ROOT}/results/${EXP}
+export PYTHONPATH="$PROJ_ROOT:$PYTHONPATH"
+LOG_PATH="$PROJ_ROOT/log/$EXP_LOG_NAME.log"
 
-# Please note that recurrent framewrok will use max_length defined in task config.
-# These two values are just for vLLM to decide max_model_length.
+# Recurrent
 MAXLEN=8192 
 MAX_NEW_TOKEN=1024
 
-LOG_PATH="/mnt/finder/shiyr/code/Mem/MemAgent/log/$EXP_LOG_NAME.log"
 python3 -m verl.trainer.main_ppo \
     recurrent.enable=memory \
     recurrent.memory.config.chunk_size=5000 \
@@ -84,7 +86,7 @@ python3 -m verl.trainer.main_ppo \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=0 \
     trainer.project_name=$WANDB_PROJECT \
-    trainer.experiment_name=${EXP} \
+    trainer.experiment_name=$EXP_LOG_NAME \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=$NGPUS_PER_NODE \
     trainer.nnodes=$NNODES \

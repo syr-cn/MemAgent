@@ -24,7 +24,43 @@ import numpy as np
 import torch
 
 from verl import DataProto
+from taskutils.memory_eval.utils import (
+    extract_answer,
+    extract_boxed_answer,
+    extract_solution,
+    exact_match_score,
+    sub_exact_match_score,
+    f1_score,
+)
 
+
+def calc_test_metric_single(pred, gold):
+    if pred is None:
+        return {'sub_em': 0, 'em': 0, 'f1': 0, 'prec': 0, 'recall': 0, 'valid_num': 0}
+    em = exact_match_score(pred, gold)
+    subem = sub_exact_match_score(pred, gold)
+
+    f1, prec, recall = f1_score(pred, gold)
+    metric_dict = {'sub_em': subem, 'em': float(em), 'f1': f1, 'prec': prec, 'recall': recall, 'valid_num': 1}
+    return metric_dict
+
+def calc_test_metrics(responses, goldens):
+    assert len(responses) == len(goldens)
+    metrics = defaultdict(list)
+    for response, gold in zip(responses, goldens):
+        assert isinstance(response, str)
+        pred, _ = extract_solution(response)
+        pred = extract_answer(pred) if pred else extract_answer(response)
+        # refer to taskutils/memory_eval/ruler_hqa.py:get_pred for the original code
+
+        if isinstance(gold, list):
+            metric_dicts = [calc_test_metric_single(pred, gold_item) for gold_item in gold]
+            metric_dict = max(metric_dicts, key=lambda d: d['f1'])
+        else:
+            metric_dict = calc_test_metric_single(pred, gold)
+        for k, v in metric_dict.items():
+            metrics[k].append(v)
+    return metrics
 
 def reduce_metrics(metrics: Dict[str, List[Any]]) -> Dict[str, Any]:
     for key, val in metrics.items():
@@ -57,20 +93,20 @@ def calculate_callback_count(prompt: str, response: str):
         return None
 
 def calculate_callback_distance(prompt: str, response: str):
-    x = re.findall(r'<callback>(\-?\d+)</callback>', response) # callback ID
-    x = [int(i) for i in x if int(i) >= 1]
+    callback_ids = re.findall(r'<callback>(\-?\d+)</callback>', response) # callback ID
+    callback_ids = [int(i) for i in callback_ids if int(i) >= 1]
 
-    y = re.findall(r'(range: -1 or 1<=x<(\d+))', response) # current chunk id
-    y = [int(i) for i in y if int(i) >= 1]
+    range_ids = re.findall(r'\(range: -1 or 1<=x<(\d+)\)', response) # current chunk id
+    range_ids = [int(i) for i in range_ids if int(i) >= 1]
 
-    if len(x) == 0:
+    if len(callback_ids) == 0:
         return 0
     
-    if len(y) == 0:
+    if len(range_ids) == 0:
         print(f'WARNING: No chunk ID range found in response. Pass for this item.')
         return 0
 
-    distance = abs(x[0] - y[0]) # We only consider the first callback ID and chunk ID for now
+    distance = abs(callback_ids[0] - range_ids[0]) # We only consider the first callback ID and chunk ID for now
     return distance
 
 def compute_action_metrics(batch: DataProto, tokenizer) -> Dict[str, Any]:
@@ -106,6 +142,19 @@ def compute_action_metrics(batch: DataProto, tokenizer) -> Dict[str, Any]:
         metrics[metric_name + '/mean'] = np.mean(metric_results)
         metrics[metric_name + '/max'] = np.max(metric_results)
         metrics[metric_name + '/min'] = np.min(metric_results)
+
+    return metrics
+
+def update_validate_metrics(test_batch: DataProto, output_texts) -> Dict[str, Any]:
+    metrics = {}
+    responses = []
+    ground_truths = []
+    for data_item, output_text in zip(test_batch, output_texts):
+        responses.append(output_text)
+        ground_truths.append(data_item.non_tensor_batch['reward_model']['ground_truth'])
+    
+    answer_metrics = calc_test_metrics(responses, ground_truths)
+    metrics = {f'test_{k}': v for k, v in answer_metrics.items()}
 
     return metrics
 
