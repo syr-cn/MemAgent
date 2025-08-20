@@ -771,7 +771,7 @@ class RayPPOTrainer:
                     metric_dict[pfx] = metric_val
         
         print("="*40 + "Validation Metric Dict" + "="*40)
-        pprint(metric_dict)
+        pprint({k: float(v) if isinstance(v, np.floating) else v for k, v in metric_dict.items()})
 
         return metric_dict
 
