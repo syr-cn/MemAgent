@@ -153,6 +153,7 @@ class Config:
                 continue
             if force:
                 cmd += " --force"
+            print(f'Running Command: {cmd}')
             p = subprocess.Popen(cmd, shell=True)
             self.test_process[test] = p
             p.wait()
@@ -337,7 +338,7 @@ CONFIGS = [
 
 def run_ruler_hqa():
     for c in CONFIGS:
-        task = RULER_HQA_TESTS
+        task = RULER_HQA_TESTS[:]
         if c.name.startswith("MemoryAgent"):
             task += RULER_HQA_TESTS_OVER_1M
         c.run(task, serve=True, force=False)
@@ -366,4 +367,4 @@ def run_ood_tasks():
 if __name__ == "__main__":
     print(f"{SERVE_PORT=}, {DASH_PORT=}, {MODELROOT=}")
     run_ruler_hqa()
-    # run_ood_tasks()
+    run_ood_tasks()

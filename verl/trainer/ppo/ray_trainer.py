@@ -36,7 +36,6 @@ from omegaconf import OmegaConf, open_dict
 from torch.utils.data import Dataset, RandomSampler, SequentialSampler
 from torchdata.stateful_dataloader import StatefulDataLoader
 from tqdm import tqdm
-from pprint import pprint
 
 from verl import DataProto
 from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
@@ -1388,6 +1387,8 @@ class RayPPOTrainer:
 
                 # TODO: make a canonical logger that supports various backend
                 logger.log(data=metrics, step=self.global_steps)
+                print("="*40 + "Training Metric Dict" + "="*40)
+                pprint(metrics, indent=4)
 
                 if is_last_step:
                     pprint(f"Final validation metrics: {last_val_metrics}")

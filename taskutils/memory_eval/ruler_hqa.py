@@ -72,6 +72,8 @@ def get_pred(data, args, out_file):
     from collections import defaultdict
     scores = defaultdict(list)
     fout = open(out_file, 'w' if args.force else 'a', encoding='utf-8')
+    metric_fout = open(out_file.replace('.jsonl', '_metric.json'), 'w' if args.force else 'a', encoding='utf-8')
+    
     for i, (output, item) in enumerate(zip(outputs, data)):
         if output == '':
             continue
@@ -100,6 +102,7 @@ def get_pred(data, args, out_file):
     print(f"ruler_hqa [{args.length}]")
     for k, v in scores.items():
         print(f"{k}: {round(sum(v) * 100 /len(v), 2)}")
+    metric_fout.write(json.dumps(scores, ensure_ascii=False, indent=4) + '\n')
     print(f"Total: {len(data)}")
 
 
