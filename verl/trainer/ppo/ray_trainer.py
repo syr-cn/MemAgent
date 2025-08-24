@@ -1368,7 +1368,8 @@ class RayPPOTrainer:
                     from recurrent.utils import indexing_proto
                     batch = indexing_proto(batch, batch.batch['no_padding_mask'])
                 metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic))
-                metrics.update(compute_action_metrics(batch=batch, tokenizer=self.tokenizer))
+                if 'callback' in self.config.recurrent.memory.path:
+                    metrics.update(compute_action_metrics(batch=batch, tokenizer=self.tokenizer))
                 metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
                 # TODO: implement actual tflpo and theoretical tflpo
                 n_gpus = self.resource_pool_manager.get_n_gpus()
