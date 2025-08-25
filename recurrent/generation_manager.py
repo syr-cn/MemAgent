@@ -196,7 +196,7 @@ class LLMGenerationManager:
                     meta_info_callback.update(meta_info)
                     input_ids_cb = pad_tensor_list_to_length(messages_callback, pad_token_id=pad_token_id, max_length=meta_info_callback['input_pad_to'], left_pad=True)
 
-                    debug_input_string = self.tokenizer.batch_decode(input_ids_cb, skip_special_tokens=True)
+                    # debug_input_string = self.tokenizer.batch_decode(input_ids_cb, skip_special_tokens=True)
                     
                     attention_masks_cb = create_attention_mask(input_ids_cb, pad_token_id=pad_token_id)
                     position_ids_cb = create_position_ids(attention_masks_cb)

@@ -310,7 +310,7 @@ MemoryAgent_Custom = Config(
     name=exp_name,
     ckpt=model_name,
     tp=model_tp,
-    method="recurrent",
+    method="recurrent_callback" if 'callback' in model_name else "recurrent",
     concur=256,
     env=ENV(RECURRENT_MAX_CONTEXT_LEN=100000000000, RECURRENT_CHUNK_SIZE=5000, RECURRENT_MAX_NEW=1024),
 )

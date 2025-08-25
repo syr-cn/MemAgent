@@ -43,6 +43,7 @@ def calc_metrics(predictions, goldens):
 
 def get_pred(data, args, out_file):
     model = args.model
+    print(f'Using API: {args.api}')
     if "gpt" in model or "o1" in model or "o3" in model or "o4" in model or "gemini" in model or "claude" in model:
         tokenizer = tiktoken.encoding_for_model("gpt-4o-2024-08-06")
     else:
@@ -52,6 +53,9 @@ def get_pred(data, args, out_file):
         from utils import extract_answer
     elif args.api == "recurrent":
         from utils.recurrent import async_query_llm
+        from utils import extract_answer
+    elif args.api == "recurrent_callback":
+        from utils.recurrent_callback import async_query_llm
         from utils import extract_answer
     elif args.api == "recurrent-boxed":
         from utils.recurrent_boxed import async_query_llm
