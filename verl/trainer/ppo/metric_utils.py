@@ -86,9 +86,9 @@ def _compute_response_info(batch: DataProto) -> Dict[str, Any]:
 def calculate_callback_count(prompt: str, response: str):
     x = re.findall(r'<callback>(\-?\d+)</callback>', response)
     x = [int(i) for i in x if int(i) >= 1]
-    if '<callback>' in prompt and '<callbacked_section>' not in response:
+    if '<callback>' in prompt and '<callbacked_section>' not in prompt:
         # Only keep the callback count for the callback decision turns
-        return len(x)
+        return len(x) > 0
     else:
         return None
 
@@ -96,14 +96,13 @@ def calculate_callback_distance(prompt: str, response: str):
     callback_ids = re.findall(r'<callback>(\-?\d+)</callback>', response) # callback ID
     callback_ids = [int(i) for i in callback_ids if int(i) >= 1]
 
-    range_ids = re.findall(r'\(range: -1 or 1<=x<(\d+)\)', response) # current chunk id
+    range_ids = re.findall(r'\(range: -1 or 1<=x<(\d+)\)', prompt) # current chunk id
     range_ids = [int(i) for i in range_ids if int(i) >= 1]
 
     if len(callback_ids) == 0:
         return 0
     
     if len(range_ids) == 0:
-        print(f'WARNING: No chunk ID range found in response. Pass for this item.')
         return 0
 
     distance = abs(callback_ids[0] - range_ids[0]) # We only consider the first callback ID and chunk ID for now

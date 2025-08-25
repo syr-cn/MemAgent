@@ -102,7 +102,8 @@ def get_pred(data, args, out_file):
     print(f"ruler_hqa [{args.length}]")
     for k, v in scores.items():
         print(f"{k}: {round(sum(v) * 100 /len(v), 2)}")
-    metric_fout.write(json.dumps(scores, ensure_ascii=False, indent=4) + '\n')
+    metric_scores = {k: round(sum(v) * 100 /len(v), 6) for k, v in scores.items()}
+    metric_fout.write(json.dumps(metric_scores, ensure_ascii=False, indent=4) + '\n')
     print(f"Total: {len(data)}")
 
 

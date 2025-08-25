@@ -252,7 +252,7 @@ class LLMGenerationManager:
 
             with _timer('mt_update', timing_raw):
                 # Update agent state (memory, step count) using the output from the memory generation
-                gen_output_final_for_turn = self.agent.update(gen_output_mem)
+                gen_output_final_for_turn = self.agent.update(gen_output_callback, gen_output_mem)
                 gen_output_list.append(gen_output_final_for_turn)
                 logger.info('Agent update done')
 
